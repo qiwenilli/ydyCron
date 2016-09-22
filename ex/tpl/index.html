@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+        <title>任务</title>
+
+        <script src="http://code.jquery.com/jquery-3.1.0.min.js" integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s=" crossorigin="anonymous"></script>
+
+    </head>
+    <body>
+
+
+<h2>运行中的进程</h2>
+<table border="1">
+    <thead>
+        <tr>
+            <td>Pid</td>
+            <td>output</td>
+            <td>stime</td>
+            <td>etime</td>
+        </tr>
+    </thead>
+    <tbody>
+{{range .Task_process}}
+<tr>
+    <td>{{.Pid}}</td>
+    <td>{{.Output}}</td>
+    <td>{{.Stime}}</td>
+    <td>{{.Etime}}</td>
+</tr>
+
+{{end}}
+
+    </tbody>
+</table>
+
+
+<h2>所有任务</h2>
+<table border="1">
+    <thead>
+        <tr>
+            <td>Task Id</td>
+            <td>任务</td>
+            <td>cron time</td>
+            <td>命令</td>
+            <td>创建时间</td>
+            <td>Desc</td>
+            <td>操作</td>
+            <td>状态</td>
+            <td>开始运行时间</td>
+            <td>查看历史</td>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Html_task_list}}
+        <tr>
+            <td>{{.Id}}</td>
+            <td>{{.Name}}</td>
+            <td>{{.Settime}}</td>
+            <td>{{.Cmd}}</td>
+            <td>{{.Ctime}}</td>
+            <td>{{.Desc}}</td>
+            <td>{{if .Status}} [永久停止] {{else}} [开启任务] {{end}}</td>
+            <td>{{if .Pid}} <button class="kill_task" task_id="{{.Id}}">[杀掉 ({{.Pid}}) ...]</button> {{else}} [手动运行] {{end}}</td>
+            <td>{{.Stime}} </td>
+            <td><a href="/web_task_history?task_id={{.Id}}" target="_blank">查看历史</a></td>
+        </tr>
+        {{end}}
+
+    </tbody>
+</table>
+
+
+<script>
+    $(".kill_task").click(function(){
+
+        $.ajax( {  
+            url:'/web_kill_task',// 跳转到 action  
+            data:{  
+                "task_id":$(this).attr("task_id")
+            },  
+            type:'get',  
+            cache:false,  
+            dataType:'html',  //xml、json、script 或 html
+            success:function(data) {  
+                console.log(data);
+                alert(data)
+                location.reload();
+            },  
+            error : function() {  
+            }  
+        });
+
+    });
+
+</script>
+
+
+
+
+

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+        <title>{{.Html_task_id}}</title>
+
+    </head>
+    <body>
+
+
+        <h2>{{.Html_task_id}}</h2>
+<table border="1">
+    <thead>
+        <tr>
+            <td>id</td>
+            <td>任务id</td>
+            <td>开始时间</td>
+            <td>结束时间</td>
+            <td>运行时间(秒)</td>
+            <td>查看结果</td>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Html_task_history_list}}
+        <tr>
+            <td>{{.Id}}</td>
+            <td>{{.Task_id}}</td>
+            <td>{{.Start_time}}</td>
+            <td>{{.End_time}}</td>
+            <td>{{.Ex_time}}</td>
+            <td><a href="/web_task_history_desc?id={{.Id}}" target="_blank">查看</a><td>
+        </tr>
+        {{end}}
+
+    </tbody>
+</table>
+
