@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+    <head>
+        <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+        <title>任务</title>
+
+        <script src="http://code.jquery.com/jquery-3.1.0.min.js" integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s=" crossorigin="anonymous"></script>
+        <style>
+            input,table td {padding:5px;}
+        </style>
+    </head>
+    <body>
+
+        <a href="/web_runing_task">返回</a>
+
+        <form>
+            <h2>{{.Html_task.Name}}</h2>
+            <td><input type="hidden" value="{{.Html_task.Id}}" id="t_id" /></td>
+        <table border="1">
+            <tbody>
+                <tr>
+                    <td>任务名</td>                                                                                                                                                                
+                    <td><input type="text" value="{{.Html_task.Name}}" id="t_name" /></td>
+                </tr>
+                <tr>
+                    <td>cron time</td>
+                    <td><input type="text" value="{{.Html_task.Settime}}" id="t_settime" /></td>
+                </tr>
+                <tr>
+                    <td>命令</td>
+                    <td><input type="text" value="{{.Html_task.Cmd}}" id="t_cmd" style="width:500px;"/></td>
+                </tr>
+                <tr>
+                    <td>描述</td>
+                    <td><input type="text" value="{{.Html_task.Desc}}" id="t_desc" /></td>
+                </tr>
+                <tr>
+                    <td>--</td>
+                    <td><input type="button" value="保存" id="save_btn" /></td>
+                </tr>
+
+            </tbody>
+        </form>
+
+<script>
+
+
+$("#save_btn").click(function(){
+
+    var t_id = $("#t_id").val();
+    var t_name = $("#t_name").val();
+    var t_settime = $("#t_settime").val();
+    var t_cmd = $("#t_cmd").val();
+    var t_desc = $("#t_desc").val();
+
+    if(confirm("确认保存吗？") == false){
+        return;
+    }
+
+    $.ajax( {  
+        url:'/web_do_task_edit',// 跳转到 action  
+        data:{
+            t_id:t_id,
+            t_name:t_name,
+            t_settime:t_settime,
+            t_cmd:t_cmd,
+            t_desc:t_desc
+        },  
+        type:'get',  
+        cache:false,  
+        dataType:'html',  //xml、json、script 或 html
+        success:function(data) {  
+            console.log(data);
+            alert(data)
+
+            // 
+            location.reload();
+        },  
+        error : function() {  
+        }  
+    });
+
+});
+
+
+
+
+
+</script>

@@ -41,7 +41,7 @@ type Task struct {
 	Cmd     string
 	Desc    string
 	Status  int
-	Ctime   int
+	Ctime   int64
 }
 
 type Task_history struct {
@@ -56,7 +56,7 @@ type Task_process struct {
 	Pid          int
 	Output       string
 	Stime, Etime int64
-    ExCmd *interface{}
+	ExCmd        *interface{}
 }
 
 var (
@@ -92,6 +92,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Println("https://127.0.0.1:" + gcfg.ServerPort)
+	fmt.Println("   ydyCron version 1.0 qiwen<34214399@qq.com>")
 
 	// http.Post("/media", uploadHandle)
 	http.HandleFunc("/", defaultHandle)
@@ -99,6 +100,10 @@ func main() {
 	http.HandleFunc("/web_kill_task", web_kill_task_handle)
 	http.HandleFunc("/web_task_history", web_task_history_handle)
 	http.HandleFunc("/web_task_history_desc", web_task_history_desc_handle)
+	http.HandleFunc("/web_manual_run_task", web_manual_run_task_handle)
+	http.HandleFunc("/web_task_edit", web_task_edit_handle)
+	http.HandleFunc("/web_do_task_edit", web_do_task_edit_handle)
+	http.HandleFunc("/web_do_task_change_status", web_do_task_change_status_handle)
 
 	//
 	server := &http.Server{
@@ -129,8 +134,8 @@ func run_task() {
 	for _, _task := range list {
 
 		_schedule_str := strings.Fields(_task.Settime)
-		if len(_schedule_str) != 5 || _task.Status == 0{
-			color.Red("error schedule: " + fmt.Sprintf("%s", _task.Settime))
+		if len(_schedule_str) != 5 || _task.Status == 0 {
+			color.Red("no run schedule: " + fmt.Sprintf("%s %s %s", _task.Name, _task.Settime, _task.Cmd))
 			continue
 		}
 
@@ -176,13 +181,13 @@ func run_task() {
 func process_cmd(_task Task) {
 	var err error
 
-    //判断相同任务是否运行中; 运行中，不再重复执行
+	//判断相同任务是否运行中; 运行中，不再重复执行
 	_, ok := gprocess[_task.Id]
 	if ok {
-       return 
-    }
-    //创建任务记录对象
-    gprocess[_task.Id] = new(Task_process)
+		return
+	}
+	//创建任务记录对象
+	gprocess[_task.Id] = new(Task_process)
 
 	//
 	switch runtime.GOOS {
@@ -197,12 +202,12 @@ func process_cmd(_task Task) {
 	if err == nil {
 		lmap.Lock()
 
-        //如果进程不在，就不再记录
-        _, ok := gprocess[_task.Id]
-        if !ok {
-            return
-        }
-        //end...
+		//如果进程不在，就不再记录
+		_, ok := gprocess[_task.Id]
+		if !ok {
+			return
+		}
+		//end...
 
 		//记录执行的历史
 		fmt.Println(gprocess[_task.Id])
@@ -223,8 +228,8 @@ func process_cmd(_task Task) {
 				fmt.Println(affected, err)
 			}
 		}
-        //用完删除
-        delete(gprocess, _task.Id)
+		//用完删除
+		delete(gprocess, _task.Id)
 
 		lmap.Unlock()
 	}
@@ -266,14 +271,13 @@ func get_all_task_history(task_id int) ([]Task_history, error) {
 
 	var list []Task_history
 
-    err := engine.Where("task_id = ?", task_id).Desc("id").Limit(50,0).Find(&list)
+	err := engine.Where("task_id = ?", task_id).Desc("id").Limit(50, 0).Find(&list)
 	if err != nil {
 		return nil, err
 	}
 
 	return list, nil
 }
-
 
 func check_schedule_time(str string, tn int) bool {
 
@@ -330,40 +334,40 @@ func execute(task_id int, command string, args []string) (err error) {
 	cmd := exec.Command(command, args...)
 	//
 	stdout, err := cmd.StdoutPipe()
-    defer stdout.Close()
+	defer stdout.Close()
 	if err != nil {
-        gprocess[task_id].Output = fmt.Sprintln(err)
+		gprocess[task_id].Output = fmt.Sprintln(err)
 		return
 	}
-    //
+	//
 	err = cmd.Start()
 	if err != nil {
-        gprocess[task_id].Output = fmt.Sprintln(err)
+		gprocess[task_id].Output = fmt.Sprintln(err)
 		return
 	} else {
-        gprocess[task_id].Pid = cmd.Process.Pid 
-        gprocess[task_id].Stime = time.Now().Unix()
+		gprocess[task_id].Pid = cmd.Process.Pid
+		gprocess[task_id].Stime = time.Now().Unix()
 	}
 
 	//read cmd execute output
 	r := bufio.NewReader(stdout)
 	_output, err := ioutil.ReadAll(r)
 	if err != nil {
-        gprocess[task_id].Output = fmt.Sprintln(err)
+		gprocess[task_id].Output = fmt.Sprintln(err)
 		return
 	}
 	output := string(_output)
 
 	//process run ...
-    gprocess[task_id].Output = output 
+	gprocess[task_id].Output = output
 
 	//
 	err = cmd.Wait()
 	if err != nil {
-        gprocess[task_id].Output = fmt.Sprintln(err)
+		gprocess[task_id].Output = fmt.Sprintln(err)
 	}
 	//process end ...
-    gprocess[task_id].Etime = time.Now().Unix()
+	gprocess[task_id].Etime = time.Now().Unix()
 
 	return nil
 }
@@ -400,59 +404,58 @@ func web_runing_task_handle(w http.ResponseWriter, r *http.Request) {
 
 	_task_list, _ := get_all_task()
 
-    _html_task_list := make(map[int]interface{},len(_task_list))
-    for i, v := range _task_list {
-        var filed = make(map[string]interface{})
-        //
-        filed["Id"] = v.Id
-        filed["Name"] = v.Name
-        filed["Settime"] = v.Settime
-        filed["Cmd"] = v.Cmd
-        filed["Ctime"] = v.Ctime
-        filed["Desc"] = v.Desc
-        filed["Status"] = v.Status
+	_html_task_list := make(map[int]interface{}, len(_task_list))
+	for i, v := range _task_list {
+		var filed = make(map[string]interface{})
+		//
+		filed["Id"] = v.Id
+		filed["Name"] = v.Name
+		filed["Settime"] = v.Settime
+		filed["Cmd"] = v.Cmd
+		filed["Ctime"] = time.Unix(v.Ctime, 0).Format("2006-01-02 15:04:05")
+		filed["Desc"] = v.Desc
+		filed["Status"] = v.Status
 
-        filed["Pid"] = 0
-        _, ok := gprocess[v.Id]
-        if ok {
-            filed["Pid"]  = gprocess[v.Id].Pid
-            filed["Stime"] = time.Unix(gprocess[v.Id].Stime, 0).Format("2006-01-02 15:04:05")
-        }
+		filed["Pid"] = 0
+		_, ok := gprocess[v.Id]
+		if ok {
+			filed["Pid"] = gprocess[v.Id].Pid
+			filed["Stime"] = time.Unix(gprocess[v.Id].Stime, 0).Format("2006-01-02 15:04:05")
+		}
 
-        _html_task_list[i] = filed
-    }
+		_html_task_list[i] = filed
+	}
 
-	data["Html_task_list"] = _html_task_list 
-	
-    data["Task_process"] = gprocess 
+	data["Html_task_list"] = _html_task_list
 
-    t.Execute(w, data)
+	data["Task_process"] = gprocess
+
+	t.Execute(w, data)
 }
 
 func web_kill_task_handle(w http.ResponseWriter, r *http.Request) {
 
-    task_id := r.FormValue("task_id")
+	task_id := r.FormValue("task_id")
 
-    task_id_int, _ := strconv.Atoi(task_id)
+	task_id_int, _ := strconv.Atoi(task_id)
 
-    _, ok := gprocess[task_id_int]
-    if ok {
-        out, _ := exec.Command("/bin/bash","-c", fmt.Sprintf("kill -9 %s", gprocess[task_id_int].Pid)).Output()
+	_, ok := gprocess[task_id_int]
+	if ok {
+		out, _ := exec.Command("/bin/bash", "-c", fmt.Sprintf("kill -9 %s", gprocess[task_id_int].Pid)).Output()
 
-        fmt.Println(out)
-        
-        delete(gprocess, task_id_int)
-    }
+		fmt.Println(out)
 
-    //io.WriteString(w, strconv.Itoa(gprocess[task_id_int].Pid))
-    io.WriteString(w, task_id)
+		delete(gprocess, task_id_int)
+	}
+
+	io.WriteString(w, task_id+" killed")
 }
 
 func web_task_history_handle(w http.ResponseWriter, r *http.Request) {
 
-    task_id := r.FormValue("task_id")
-    
-    task_id_int, _ := strconv.Atoi(task_id)
+	task_id := r.FormValue("task_id")
+
+	task_id_int, _ := strconv.Atoi(task_id)
 
 	t, _ := template.ParseFiles("./ex/tpl/history_list.html")
 
@@ -460,41 +463,141 @@ func web_task_history_handle(w http.ResponseWriter, r *http.Request) {
 
 	_task_list, _ := get_all_task_history(task_id_int)
 
-    _html_task_list := make(map[int]interface{},len(_task_list))
-    for i, v := range _task_list {
-        var filed = make(map[string]interface{})
-        //
-        filed["Id"] = v.Id
-        filed["Task_id"] = v.Task_id
-        filed["Start_time"] = time.Unix(v.Start_time, 0).Format("2006-01-02 15:04:05")
-        filed["End_time"] = time.Unix(v.End_time, 0).Format("2006-01-02 15:04:05")
-        filed["Ex_time"] = v.End_time-v.Start_time
+	_html_task_list := make(map[int]interface{}, len(_task_list))
+	for i, v := range _task_list {
+		var filed = make(map[string]interface{})
+		//
+		filed["Id"] = v.Id
+		filed["Task_id"] = v.Task_id
+		filed["Start_time"] = time.Unix(v.Start_time, 0).Format("2006-01-02 15:04:05")
+		filed["End_time"] = time.Unix(v.End_time, 0).Format("2006-01-02 15:04:05")
+		filed["Ex_time"] = v.End_time - v.Start_time
 
-        _html_task_list[i] = filed
-    }
-	data["Html_task_id"] = task_id 
-	data["Html_task_history_list"] = _html_task_list 
-	
-    t.Execute(w, data)
+		_html_task_list[i] = filed
+	}
+	data["Html_task_id"] = task_id
+	data["Html_task_history_list"] = _html_task_list
+
+	t.Execute(w, data)
 }
 
 func web_task_history_desc_handle(w http.ResponseWriter, r *http.Request) {
 
-    id := r.FormValue("id")
-    
+	id := r.FormValue("id")
+
 	t, _ := template.ParseFiles("./ex/tpl/history_desc.html")
 
 	data := make(map[string]interface{})
 
-    var task_history Task_history
-    
-    _,err := engine.Where("id = ?", id).Get(&task_history)
+	var task_history Task_history
+
+	_, err := engine.Where("id = ?", id).Get(&task_history)
 	if err != nil {
-	
-    }
+
+	}
 
 	data["Html_task_history_desc"] = task_history
-	
-    t.Execute(w, data)
+
+	t.Execute(w, data)
 }
 
+func web_manual_run_task_handle(w http.ResponseWriter, r *http.Request) {
+
+	task_id := r.FormValue("task_id")
+
+	var task Task
+
+	_, err := engine.Where("id = ?", task_id).Get(&task)
+
+	if err == nil {
+		go process_cmd(task)
+		//
+		io.WriteString(w, "task run...")
+	} else {
+		io.WriteString(w, "task not run"+fmt.Sprintf(err.Error()))
+	}
+}
+
+func web_task_edit_handle(w http.ResponseWriter, r *http.Request) {
+
+	task_id := r.FormValue("task_id")
+
+	var task Task
+
+	if task_id != "" {
+		engine.Where("id = ?", task_id).Get(&task)
+	}
+
+	data := make(map[string]interface{})
+
+	data["Html_task_id"] = task_id
+	data["Html_task"] = task
+
+	t, _ := template.ParseFiles("./ex/tpl/task_edit.html")
+
+	t.Execute(w, data)
+}
+
+func web_do_task_edit_handle(w http.ResponseWriter, r *http.Request) {
+
+	task_id := r.FormValue("t_id")
+	t_name := r.FormValue("t_name")
+	t_settime := r.FormValue("t_settime")
+	t_cmd := r.FormValue("t_cmd")
+	t_desc := r.FormValue("t_desc")
+
+	if task_id != "" && task_id != "0" {
+		//update
+		task := Task{
+			Name:    t_name,
+			Settime: t_settime,
+			Cmd:     t_cmd,
+			Desc:    t_desc,
+			Status:  1,
+			Ctime:   time.Now().Unix(), //.Format("2006-01-02 15:04:05"),
+		}
+		engine.Where("id = ?", task_id).Update(&task)
+	} else {
+		var task Task
+
+		engine.Desc("id").Get(&task)
+
+		_id := task.Id + 1
+
+		task = Task{
+			Id:      _id,
+			Name:    t_name,
+			Settime: t_settime,
+			Cmd:     t_cmd,
+			Desc:    t_desc,
+		}
+		engine.Insert(&task)
+	}
+
+	io.WriteString(w, "ok")
+}
+
+func web_do_task_change_status_handle(w http.ResponseWriter, r *http.Request) {
+
+	task_id := r.FormValue("task_id")
+
+	task_id_int, _ := strconv.Atoi(task_id)
+
+	if task_id != "" && task_id != "0" {
+		//update
+		var task Task
+
+		engine.Where("id = ?", task_id).Desc("id").Get(&task)
+
+		status := 0
+		if task.Status == 1 {
+			status = 0
+		} else {
+			status = 1
+		}
+
+		engine.Where("id = ?", task_id_int).Cols("Status").Update(&Task{Status: status})
+	}
+
+	io.WriteString(w, "ok")
+}
