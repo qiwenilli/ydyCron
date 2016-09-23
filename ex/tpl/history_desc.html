@@ -7,8 +7,11 @@
     </head>
     <body>
 
-<p>
+        <a href="/web_task_history?task_id={{.Html_task_history_desc.Id}}">返回</a>
 
-    {{.Html_task_history_desc.Output}}
+<p>
+    <textarea style="width:100%;height:100%" rows="35">
+        {{.Html_task_history_desc.Output}}
+    </textarea>
 </p>
 

@@ -77,8 +77,8 @@ func main() {
 	engine.Sync2(new(Task), new(Task_history))
 
 	//crontab task
-	// ticker := time.NewTicker(time.Millisecond * 1000*60)
-	ticker := time.NewTicker(time.Millisecond * 1000)
+	ticker := time.NewTicker(time.Millisecond * 1000*59)
+	// ticker := time.NewTicker(time.Millisecond * 10)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -235,33 +235,13 @@ func process_cmd(_task Task) {
 	}
 }
 
-func get_all_task() (map[int]Task, error) {
+func get_all_task() ([]Task, error) {
 
-	var list = make(map[int]Task)
+	var list []Task
 
-	task := new(Task)
-	// rows, err := engine.Where("Status = ?", 1).Rows(task)
-	rows, err := engine.Rows(task)
+	err := engine.Desc("id").Find(&list)
 	if err != nil {
 		return nil, err
-	}
-	defer rows.Close()
-	for i := 0; rows.Next(); i++ {
-		err = rows.Scan(task)
-		if err != nil {
-			return nil, err
-			break
-		}
-
-		list[i] = Task{
-			Id:      task.Id,
-			Name:    fmt.Sprintf(task.Name),
-			Settime: fmt.Sprintf(task.Settime),
-			Cmd:     fmt.Sprintf(task.Cmd),
-			Desc:    fmt.Sprintf(task.Desc),
-			Status:  task.Status,
-			Ctime:   task.Ctime,
-		}
 	}
 
 	return list, nil
