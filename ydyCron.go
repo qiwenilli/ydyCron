@@ -77,8 +77,8 @@ func main() {
 	engine.Sync2(new(Task), new(Task_history))
 
 	//crontab task
-	// ticker := time.NewTicker(time.Millisecond * 1000 * 59)
-	ticker := time.NewTicker(time.Millisecond * 1000)
+	ticker := time.NewTicker(time.Millisecond * 1000 * 59)
+	// ticker := time.NewTicker(time.Millisecond * 1000)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -123,6 +123,10 @@ func run_task() {
 	var schedule ScheduleTime
 
 	for _, _task := range list {
+
+		if len(_task.Settime) < 5 {
+			continue
+		}
 
 		_schedule_str := strings.Fields(_task.Settime)
 		if len(_schedule_str) != 5 || _task.Status == 0 {
