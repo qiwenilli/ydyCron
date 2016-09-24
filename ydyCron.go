@@ -69,7 +69,7 @@ var (
 
 func main() {
 	var err error
-	engine, err = xorm.NewEngine("sqlite3", "./cron.db")
+	engine, err = xorm.NewEngine("sqlite3", "./ex/cron.db")
 	if err != nil {
 		color.Red("db connect error!")
 		return
@@ -77,8 +77,8 @@ func main() {
 	engine.Sync2(new(Task), new(Task_history))
 
 	//crontab task
-	ticker := time.NewTicker(time.Millisecond * 1000*59)
-	// ticker := time.NewTicker(time.Millisecond * 10)
+	// ticker := time.NewTicker(time.Millisecond * 1000 * 59)
+	ticker := time.NewTicker(time.Millisecond * 10)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -316,40 +316,68 @@ func execute(task_id int, command string, args []string) (err error) {
 	stdout, err := cmd.StdoutPipe()
 	defer stdout.Close()
 	if err != nil {
-		gprocess[task_id].Output = fmt.Sprintln(err)
+		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	}
 	//
 	err = cmd.Start()
 	if err != nil {
-		gprocess[task_id].Output = fmt.Sprintln(err)
+		// gprocess[task_id].Output = fmt.Sprintln(err)
+		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	} else {
-		gprocess[task_id].Pid = cmd.Process.Pid
-		gprocess[task_id].Stime = time.Now().Unix()
+		// gprocess[task_id].Pid = cmd.Process.Pid
+		// gprocess[task_id].Stime = time.Now().Unix()
+		write_task_start_output(task_id, cmd.Process.Pid, time.Now().Unix())
 	}
 
 	//read cmd execute output
 	r := bufio.NewReader(stdout)
 	_output, err := ioutil.ReadAll(r)
 	if err != nil {
-		gprocess[task_id].Output = fmt.Sprintln(err)
+		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	}
 	output := string(_output)
 
-	//process run ...
-	gprocess[task_id].Output = output
-
 	//
 	err = cmd.Wait()
 	if err != nil {
-		gprocess[task_id].Output = fmt.Sprintln(err)
+		// gprocess[task_id].Output = fmt.Sprintln(err)
+		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 	}
 	//process end ...
-	gprocess[task_id].Etime = time.Now().Unix()
+	// gprocess[task_id].Output = output
+	// gprocess[task_id].Etime = time.Now().Unix()
+	write_task_end_output(task_id, output, time.Now().Unix())
 
 	return nil
+}
+
+func write_task_start_output(task_id, pid int, stime int64) {
+	lmap.Lock()
+
+	gprocess[task_id].Pid = pid
+	gprocess[task_id].Stime = stime
+
+	lmap.Unlock()
+}
+
+func write_task_end_output(task_id int, output string, etime int64) {
+	lmap.Lock()
+
+	gprocess[task_id].Output = output
+	gprocess[task_id].Stime = etime
+
+	lmap.Unlock()
+}
+
+func write_task_err_output(task_id int, output string) {
+	lmap.Lock()
+
+	gprocess[task_id].Output = output
+
+	lmap.Unlock()
 }
 
 func md5string(str string) string {
