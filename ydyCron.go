@@ -527,14 +527,19 @@ func web_manual_run_task_handle(w http.ResponseWriter, r *http.Request) {
 
 	task_id := r.FormValue("task_id")
 
-	var task Task
+	var _task Task
 
-	_, err := engine.Where("id = ?", task_id).Get(&task)
+	_, err := engine.Where("id = ?", task_id).Get(&_task)
 
 	if err == nil {
-		fmt.Println(task)
+		fmt.Println(_task)
 
-		go process_cmd(task)
+		_, ok := gprocess[_task.Id]
+		if !ok {
+			// //创建任务记录对象
+			gprocess[_task.Id] = new(Task_process)
+		}
+		go process_cmd(_task)
 		//
 		io.WriteString(w, "task run...")
 	} else {
