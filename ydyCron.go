@@ -22,7 +22,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/fatih/color"
-	"github.com/qiniu/log"
+	// "github.com/qiniu/log"
 )
 
 type GlobalConfig struct {
@@ -93,17 +93,9 @@ func main() {
 
 	fmt.Println("https://127.0.0.1:" + gcfg.ServerPort)
 	fmt.Println("   ydyCron version 1.0 qiwen<34214399@qq.com>")
+	fmt.Println("\n\n")
 
-	// http.Post("/media", uploadHandle)
-	http.HandleFunc("/", defaultHandle)
-	http.HandleFunc("/web_runing_task", web_runing_task_handle)
-	http.HandleFunc("/web_manual_run_task", web_manual_run_task_handle)
-	http.HandleFunc("/web_kill_task", web_kill_task_handle)
-	http.HandleFunc("/web_task_history", web_task_history_handle)
-	http.HandleFunc("/web_task_history_desc", web_task_history_desc_handle)
-	http.HandleFunc("/web_task_edit", web_task_edit_handle)
-	http.HandleFunc("/web_do_task_edit", web_do_task_edit_handle)
-	http.HandleFunc("/web_do_task_change_status", web_do_task_change_status_handle)
+	init_http_web()
 
 	//
 	server := &http.Server{
@@ -117,7 +109,6 @@ func main() {
 	err = server.ListenAndServe()
 	// err = server.ListenAndServeTLS("./ex/jd.crt", "./ex/jd.key")
 	if err != nil {
-		log.Debug("....")
 	}
 }
 
@@ -171,7 +162,7 @@ func run_task() {
 			continue
 		}
 
-		color.Green(fmt.Sprintf("%s %s", _task.Name, _task.Cmd))
+		color.Green(fmt.Sprintf("run: %s %s", _task.Name, _task.Cmd))
 
 		_, ok := gprocess[_task.Id]
 		if !ok {
@@ -188,8 +179,10 @@ func process_cmd(_task Task) {
 	var err error
 
 	if gprocess[_task.Id].Pid > 0 {
+		color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
 		return
 	}
+	color.Yellow(fmt.Sprintf("%s %s", "run...", _task.Name))
 
 	//
 	switch runtime.GOOS {
@@ -393,6 +386,19 @@ func md5string(str string) string {
 }
 
 //------------------* web ------------------
+
+func init_http_web() {
+	// http.Post("/media", uploadHandle)
+	http.HandleFunc("/", defaultHandle)
+	http.HandleFunc("/web_runing_task", web_runing_task_handle)
+	http.HandleFunc("/web_manual_run_task", web_manual_run_task_handle)
+	http.HandleFunc("/web_kill_task", web_kill_task_handle)
+	http.HandleFunc("/web_task_history", web_task_history_handle)
+	http.HandleFunc("/web_task_history_desc", web_task_history_desc_handle)
+	http.HandleFunc("/web_task_edit", web_task_edit_handle)
+	http.HandleFunc("/web_do_task_edit", web_do_task_edit_handle)
+	http.HandleFunc("/web_do_task_change_status", web_do_task_change_status_handle)
+}
 
 func defaultHandle(w http.ResponseWriter, r *http.Request) {
 	//http.NotFoundHandler()
