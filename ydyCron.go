@@ -64,7 +64,7 @@ var (
 	engine *xorm.Engine
 	lmap   = new(sync.Mutex)
 	//
-	gprocess = make(map[int]*Task_process, 1024)
+	gprocess = make(map[int]*Task_process, 2048)
 )
 
 func main() {
@@ -78,7 +78,7 @@ func main() {
 
 	//crontab task
 	// ticker := time.NewTicker(time.Millisecond * 1000 * 59)
-	ticker := time.NewTicker(time.Millisecond * 10)
+	ticker := time.NewTicker(time.Millisecond * 1000)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -97,10 +97,10 @@ func main() {
 	// http.Post("/media", uploadHandle)
 	http.HandleFunc("/", defaultHandle)
 	http.HandleFunc("/web_runing_task", web_runing_task_handle)
+	http.HandleFunc("/web_manual_run_task", web_manual_run_task_handle)
 	http.HandleFunc("/web_kill_task", web_kill_task_handle)
 	http.HandleFunc("/web_task_history", web_task_history_handle)
 	http.HandleFunc("/web_task_history_desc", web_task_history_desc_handle)
-	http.HandleFunc("/web_manual_run_task", web_manual_run_task_handle)
 	http.HandleFunc("/web_task_edit", web_task_edit_handle)
 	http.HandleFunc("/web_do_task_edit", web_do_task_edit_handle)
 	http.HandleFunc("/web_do_task_change_status", web_do_task_change_status_handle)
@@ -171,7 +171,13 @@ func run_task() {
 			continue
 		}
 
-		fmt.Println("---1---", _task.Name, _task.Cmd)
+		color.Green(fmt.Sprintf("%s %s", _task.Name, _task.Cmd))
+
+		_, ok := gprocess[_task.Id]
+		if !ok {
+			// //创建任务记录对象
+			gprocess[_task.Id] = new(Task_process)
+		}
 
 		// defer
 		go process_cmd(_task)
@@ -181,13 +187,9 @@ func run_task() {
 func process_cmd(_task Task) {
 	var err error
 
-	//判断相同任务是否运行中; 运行中，不再重复执行
-	_, ok := gprocess[_task.Id]
-	if ok {
+	if gprocess[_task.Id].Pid > 0 {
 		return
 	}
-	//创建任务记录对象
-	gprocess[_task.Id] = new(Task_process)
 
 	//
 	switch runtime.GOOS {
@@ -229,7 +231,11 @@ func process_cmd(_task Task) {
 			}
 		}
 		//用完删除
-		delete(gprocess, _task.Id)
+		gprocess[_task.Id].Pid = 0
+		gprocess[_task.Id].Output = ""
+		gprocess[_task.Id].Stime = 0
+		gprocess[_task.Id].Etime = 0
+		// delete(gprocess, _task.Id)
 
 		lmap.Unlock()
 	}
@@ -310,6 +316,7 @@ func check_schedule_time(str string, tn int) bool {
 func execute(task_id int, command string, args []string) (err error) {
 
 	// stime := fmt.Sprintf(time.Now().Format("2006-01-02 15:04:05"))
+	lmap.Lock()
 	//
 	cmd := exec.Command(command, args...)
 	//
@@ -319,15 +326,13 @@ func execute(task_id int, command string, args []string) (err error) {
 		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	}
+	lmap.Unlock()
 	//
 	err = cmd.Start()
 	if err != nil {
-		// gprocess[task_id].Output = fmt.Sprintln(err)
 		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	} else {
-		// gprocess[task_id].Pid = cmd.Process.Pid
-		// gprocess[task_id].Stime = time.Now().Unix()
 		write_task_start_output(task_id, cmd.Process.Pid, time.Now().Unix())
 	}
 
@@ -343,12 +348,9 @@ func execute(task_id int, command string, args []string) (err error) {
 	//
 	err = cmd.Wait()
 	if err != nil {
-		// gprocess[task_id].Output = fmt.Sprintln(err)
 		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 	}
 	//process end ...
-	// gprocess[task_id].Output = output
-	// gprocess[task_id].Etime = time.Now().Unix()
 	write_task_end_output(task_id, output, time.Now().Unix())
 
 	return nil
@@ -367,7 +369,7 @@ func write_task_end_output(task_id int, output string, etime int64) {
 	lmap.Lock()
 
 	gprocess[task_id].Output = output
-	gprocess[task_id].Stime = etime
+	gprocess[task_id].Etime = etime
 
 	lmap.Unlock()
 }
@@ -424,12 +426,14 @@ func web_runing_task_handle(w http.ResponseWriter, r *http.Request) {
 		filed["Desc"] = v.Desc
 		filed["Status"] = v.Status
 
+		// lmap.Lock()
 		filed["Pid"] = 0
 		_, ok := gprocess[v.Id]
 		if ok {
 			filed["Pid"] = gprocess[v.Id].Pid
 			filed["Stime"] = time.Unix(gprocess[v.Id].Stime, 0).Format("2006-01-02 15:04:05")
 		}
+		// lmap.Unlock()
 
 		_html_task_list[i] = filed
 	}
@@ -449,11 +453,9 @@ func web_kill_task_handle(w http.ResponseWriter, r *http.Request) {
 
 	_, ok := gprocess[task_id_int]
 	if ok {
-		out, _ := exec.Command("/bin/bash", "-c", fmt.Sprintf("kill -9 %s", gprocess[task_id_int].Pid)).Output()
+		out, err := exec.Command("/bin/bash", "-c", fmt.Sprintf("kill -9 %s", gprocess[task_id_int].Pid)).Output()
 
-		fmt.Println(out)
-
-		delete(gprocess, task_id_int)
+		fmt.Println(out, err)
 	}
 
 	io.WriteString(w, task_id+" killed")
@@ -492,6 +494,7 @@ func web_task_history_handle(w http.ResponseWriter, r *http.Request) {
 func web_task_history_desc_handle(w http.ResponseWriter, r *http.Request) {
 
 	id := r.FormValue("id")
+	task_id := r.FormValue("task_id")
 
 	t, _ := template.ParseFiles("./ex/tpl/history_desc.html")
 
@@ -504,6 +507,7 @@ func web_task_history_desc_handle(w http.ResponseWriter, r *http.Request) {
 
 	}
 
+	data["Html_task_id"] = task_id
 	data["Html_task_history_desc"] = task_history
 
 	t.Execute(w, data)
@@ -518,6 +522,8 @@ func web_manual_run_task_handle(w http.ResponseWriter, r *http.Request) {
 	_, err := engine.Where("id = ?", task_id).Get(&task)
 
 	if err == nil {
+		fmt.Println(task)
+
 		go process_cmd(task)
 		//
 		io.WriteString(w, "task run...")

@@ -2,7 +2,7 @@
 <html lang="zh-CN">
     <head>
         <meta http-equiv="Content-type" content="text/html; charset=utf-8">
-        <title>任务</title>
+        <title>ydyCron</title>
 
         <script src="http://code.jquery.com/jquery-3.1.0.min.js" integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s=" crossorigin="anonymous"></script>
         <style>
@@ -13,7 +13,7 @@
     <body>
 
 
-<h2>运行中的进程</h2>
+<h2>运行中的进程 (让crontab再傻一点)</h2>
 <table border="1">
     <thead>
         <tr>
@@ -45,9 +45,7 @@
             <td>Task Id</td>
             <td>任务</td>
             <td>cron time</td>
-            <td>命令</td>
             <td>创建时间</td>
-            <td>Desc</td>
             <td>操作</td>
             <td>状态</td>
             <td>开始运行时间</td>
@@ -61,14 +59,20 @@
             <td>{{.Id}}</td>
             <td>{{.Name}}</td>
             <td>{{.Settime}}</td>
-            <td>{{.Cmd}}</td>
             <td>{{.Ctime}}</td>
-            <td>{{.Desc}}</td>
             <td><a href="#" task_id="{{.Id}}" class="change_status">{{if .Status}} [永久停止] {{else}} [开启任务] {{end}}</a></td>
             <td>{{if .Pid}} <button class="kill_task btn_red" task_id="{{.Id}}" pid="{{.Pid}}">[杀掉 ({{.Pid}}) ...]</button> {{else}} <a href="#" class="manual_run_task" task_id="{{.Id}}">[手动运行]</a> {{end}}</td>
             <td>{{.Stime}} </td>
             <td><a href="/web_task_history?task_id={{.Id}}">查看历史</a></td>
             <td><a href="/web_task_edit?task_id={{.Id}}">修改</a></td>
+        </tr>
+        <tr>
+            <td>=>命令</td>
+            <td colspan="9" style="color:green;font-weight:600;"> {{.Cmd}} </td>
+        </tr>
+        <tr>
+            <td>=>Desc</td>
+            <td colspan="9"> {{.Desc}} </td>
         </tr>
         {{end}}
 
