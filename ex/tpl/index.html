@@ -39,12 +39,12 @@
 
 
 <h2>所有任务</h2> <a href="/web_task_edit"> 添加任务 </a>
-<table border="1">
+<table border="1" width="100%">
     <thead>
-        <tr>
+        <tr bgcolor="#ccff99">
             <td>Task Id</td>
             <td>任务</td>
-            <td>cron time</td>
+            <td>[分 小时 日 月 星期]</td>
             <td>创建时间</td>
             <td>操作</td>
             <td>状态</td>
@@ -55,20 +55,20 @@
     </thead>
     <tbody>
         {{range .Html_task_list}}
-        <tr>
+        <tr bgcolor="#ccff99">
             <td>{{.Id}}</td>
             <td>{{.Name}}</td>
             <td>{{.Settime}}</td>
             <td>{{.Ctime}}</td>
             <td><a href="#" task_id="{{.Id}}" class="change_status">{{if .Status}} [永久停止] {{else}} [开启任务] {{end}}</a></td>
-            <td>{{if .Pid}} <button class="kill_task btn_red" task_id="{{.Id}}" pid="{{.Pid}}">[杀掉 ({{.Pid}}) ...]</button> {{else}} <a href="#" class="manual_run_task" task_id="{{.Id}}">[手动运行]</a> {{end}}</td>
+            <td>{{if .Pid}} <button class="kill_task btn_red" task_id="{{.Id}}" pid="{{.Pid}}">[杀掉 ({{.Pid}}) ]</button> {{else}} <a href="#" class="manual_run_task" task_id="{{.Id}}">[手动运行]</a> {{end}}</td>
             <td>{{.Stime}} </td>
             <td><a href="/web_task_history?task_id={{.Id}}">查看历史</a></td>
             <td><a href="/web_task_edit?task_id={{.Id}}">修改</a></td>
         </tr>
         <tr>
             <td>=>命令</td>
-            <td colspan="9" style="color:green;font-weight:600;"> {{.Cmd}} </td>
+            <td colspan="9" style="color:#3333cc;font-weight:600;"> {{.Cmd}} </td>
         </tr>
         <tr>
             <td>=>Desc</td>

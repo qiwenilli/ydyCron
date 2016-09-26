@@ -62,7 +62,7 @@ type Task_process struct {
 var (
 	gcfg   GlobalConfig
 	engine *xorm.Engine
-	lmap   = new(sync.Mutex)
+	lmap   = new(sync.RWMutex)
 	//
 	gprocess = make(map[int]*Task_process, 2048)
 )
@@ -77,8 +77,8 @@ func main() {
 	engine.Sync2(new(Task), new(Task_history))
 
 	//crontab task
-	ticker := time.NewTicker(time.Millisecond * 1000 * 59)
-	// ticker := time.NewTicker(time.Millisecond * 1000)
+	// ticker := time.NewTicker(time.Millisecond * 1000 * 59)
+	ticker := time.NewTicker(time.Millisecond * 10)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -91,7 +91,9 @@ func main() {
 	flag.StringVar(&gcfg.ServerPort, "port", "8412", "port to listen")
 	flag.Parse()
 
+	fmt.Println("\n")
 	fmt.Println("https://127.0.0.1:" + gcfg.ServerPort)
+	fmt.Println("\n")
 	fmt.Println("   ydyCron version 1.0 qiwen<34214399@qq.com>")
 	fmt.Println("\n\n")
 
@@ -123,10 +125,6 @@ func run_task() {
 	var schedule ScheduleTime
 
 	for _, _task := range list {
-
-		if len(_task.Settime) < 5 {
-			continue
-		}
 
 		_schedule_str := strings.Fields(_task.Settime)
 		if len(_schedule_str) != 5 || _task.Status == 0 {
@@ -165,14 +163,16 @@ func run_task() {
 		if false == check_schedule_time(schedule.W, int(w)) {
 			continue
 		}
-
 		color.Green(fmt.Sprintf("run: %s %s", _task.Name, _task.Cmd))
 
+		//
+		lmap.RLock()
 		_, ok := gprocess[_task.Id]
 		if !ok {
 			// //创建任务记录对象
 			gprocess[_task.Id] = new(Task_process)
 		}
+		lmap.RUnlock()
 
 		// defer
 		go process_cmd(_task)
@@ -182,10 +182,14 @@ func run_task() {
 func process_cmd(_task Task) {
 	var err error
 
+	lmap.RLock()
 	if gprocess[_task.Id].Pid > 0 {
 		color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
+		lmap.RUnlock()
 		return
 	}
+	lmap.RUnlock()
+
 	color.Yellow(fmt.Sprintf("%s %s", "run...", _task.Name))
 
 	//
@@ -199,11 +203,11 @@ func process_cmd(_task Task) {
 	}
 
 	if err == nil {
-		lmap.Lock()
-
 		//如果进程不在，就不再记录
+		lmap.RLock()
 		_, ok := gprocess[_task.Id]
 		if !ok {
+			lmap.RUnlock()
 			return
 		}
 		//end...
@@ -233,8 +237,7 @@ func process_cmd(_task Task) {
 		gprocess[_task.Id].Stime = 0
 		gprocess[_task.Id].Etime = 0
 		// delete(gprocess, _task.Id)
-
-		lmap.Unlock()
+		lmap.RUnlock()
 	}
 }
 
@@ -313,7 +316,7 @@ func check_schedule_time(str string, tn int) bool {
 func execute(task_id int, command string, args []string) (err error) {
 
 	// stime := fmt.Sprintf(time.Now().Format("2006-01-02 15:04:05"))
-	lmap.Lock()
+	// lmap.Lock()
 	//
 	cmd := exec.Command(command, args...)
 	//
@@ -323,7 +326,7 @@ func execute(task_id int, command string, args []string) (err error) {
 		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	}
-	lmap.Unlock()
+	// lmap.Unlock()
 	//
 	err = cmd.Start()
 	if err != nil {
@@ -355,28 +358,25 @@ func execute(task_id int, command string, args []string) (err error) {
 
 func write_task_start_output(task_id, pid int, stime int64) {
 	lmap.Lock()
+	defer lmap.Unlock()
 
 	gprocess[task_id].Pid = pid
 	gprocess[task_id].Stime = stime
-
-	lmap.Unlock()
 }
 
 func write_task_end_output(task_id int, output string, etime int64) {
 	lmap.Lock()
+	defer lmap.Unlock()
 
 	gprocess[task_id].Output = output
 	gprocess[task_id].Etime = etime
-
-	lmap.Unlock()
 }
 
 func write_task_err_output(task_id int, output string) {
 	lmap.Lock()
+	defer lmap.Unlock()
 
 	gprocess[task_id].Output = output
-
-	lmap.Unlock()
 }
 
 func md5string(str string) string {
@@ -436,14 +436,14 @@ func web_runing_task_handle(w http.ResponseWriter, r *http.Request) {
 		filed["Desc"] = v.Desc
 		filed["Status"] = v.Status
 
-		// lmap.Lock()
+		lmap.RLock()
 		filed["Pid"] = 0
 		_, ok := gprocess[v.Id]
 		if ok {
 			filed["Pid"] = gprocess[v.Id].Pid
 			filed["Stime"] = time.Unix(gprocess[v.Id].Stime, 0).Format("2006-01-02 15:04:05")
 		}
-		// lmap.Unlock()
+		lmap.RUnlock()
 
 		_html_task_list[i] = filed
 	}
@@ -599,6 +599,7 @@ func web_do_task_edit_handle(w http.ResponseWriter, r *http.Request) {
 			Settime: t_settime,
 			Cmd:     t_cmd,
 			Desc:    t_desc,
+			Ctime:   time.Now().Unix(), //.Format("2006-01-02 15:04:05"),
 		}
 		engine.Insert(&task)
 	}
