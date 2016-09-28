@@ -77,8 +77,8 @@ func main() {
 	engine.Sync2(new(Task), new(Task_history))
 
 	//crontab task
-	// ticker := time.NewTicker(time.Millisecond * 1000 * 59)
-	ticker := time.NewTicker(time.Millisecond * 10)
+	ticker := time.NewTicker(time.Millisecond * 1000 * 59)
+	// ticker := time.NewTicker(time.Millisecond * 10)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -171,6 +171,12 @@ func run_task() {
 		if !ok {
 			// //创建任务记录对象
 			gprocess[_task.Id] = new(Task_process)
+		} else {
+			if gprocess[_task.Id].Pid > 0 {
+				color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
+
+				continue
+			}
 		}
 		lmap.RUnlock()
 
@@ -182,13 +188,13 @@ func run_task() {
 func process_cmd(_task Task) {
 	var err error
 
-	lmap.RLock()
-	if gprocess[_task.Id].Pid > 0 {
-		color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
-		lmap.RUnlock()
-		return
-	}
-	lmap.RUnlock()
+	// lmap.RLock()
+	// if gprocess[_task.Id].Pid > 0 {
+	// 	color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
+	// 	lmap.RUnlock()
+	// 	return
+	// }
+	// lmap.RUnlock()
 
 	color.Yellow(fmt.Sprintf("%s %s", "run...", _task.Name))
 
@@ -538,6 +544,12 @@ func web_manual_run_task_handle(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			// //创建任务记录对象
 			gprocess[_task.Id] = new(Task_process)
+		} else {
+			if gprocess[_task.Id].Pid > 0 {
+				io.WriteString(w, "task is run")
+
+				return
+			}
 		}
 		go process_cmd(_task)
 		//
