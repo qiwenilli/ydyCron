@@ -6,49 +6,26 @@
 
         <script src="http://code.jquery.com/jquery-3.1.0.min.js" integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s=" crossorigin="anonymous"></script>
         <style>
-            table td {padding:5px;}
+            table td {padding:5px;font-size:14px;}
             .btn_red{background-color:#ff0000; color:#ffffff;}
         </style>
     </head>
     <body>
 
 
-<h2>运行中的进程 (让crontab再傻一点)</h2>
-<table border="1">
-    <thead>
-        <tr>
-            <td>Pid</td>
-            <td>output</td>
-            <td>stime</td>
-            <td>etime</td>
-        </tr>
-    </thead>
-    <tbody>
-{{range .Task_process}}
-<tr>
-    <td>{{.Pid}}</td>
-    <td>{{.Output}}</td>
-    <td>{{.Stime}}</td>
-    <td>{{.Etime}}</td>
-</tr>
-
-{{end}}
-
-    </tbody>
-</table>
-
-
-<h2>所有任务</h2> <a href="/web_task_edit"> 添加任务 </a>
-<table border="1" width="100%">
+<h2>所有任务 [让crontab再傻一点]</h2> <a href="/web_task_edit"> 添加任务 </a>
+<table border="0" width="100%">
     <thead>
         <tr bgcolor="#ccff99">
-            <td>Task Id</td>
+            <td>Tid</td>
             <td>任务</td>
             <td>[分 小时 日 月 星期]</td>
             <td>创建时间</td>
             <td>操作</td>
             <td>状态</td>
+            <td>最后运行时间</td>
             <td>开始运行时间</td>
+            <td>已运行(秒)</td>
             <td>查看历史</td>
             <td>操作</td>
         </tr>
@@ -62,7 +39,9 @@
             <td>{{.Ctime}}</td>
             <td><a href="#" task_id="{{.Id}}" class="change_status">{{if .Status}} [永久停止] {{else}} [开启任务] {{end}}</a></td>
             <td>{{if .Pid}} <button class="kill_task btn_red" task_id="{{.Id}}" pid="{{.Pid}}">[杀掉 ({{.Pid}}) ]</button> {{else}} <a href="#" class="manual_run_task" task_id="{{.Id}}">[手动运行]</a> {{end}}</td>
+            <td>{{.Last_run_time}} </td>
             <td>{{.Stime}} </td>
+            <td>{{.Rtime}}</td>
             <td><a href="/web_task_history?task_id={{.Id}}">查看历史</a></td>
             <td><a href="/web_task_edit?task_id={{.Id}}">修改</a></td>
         </tr>

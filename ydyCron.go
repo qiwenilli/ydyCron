@@ -8,12 +8,12 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
-	// "os"
-	"os/exec"
 	//"errors"
 	"crypto/md5"
 	"sync"
@@ -35,13 +35,14 @@ type ScheduleTime struct {
 }
 
 type Task struct {
-	Id      int
-	Name    string
-	Settime string
-	Cmd     string
-	Desc    string
-	Status  int
-	Ctime   int64
+	Id            int
+	Name          string
+	Settime       string
+	Cmd           string
+	Desc          string
+	Status        int
+	Ctime         int64
+	Last_run_time int64
 }
 
 type Task_history struct {
@@ -68,6 +69,14 @@ var (
 )
 
 func main() {
+
+	//用于守护进程
+	if err := ioutil.WriteFile("ex/ydyCron.pid", []byte(fmt.Sprint(os.Getpid())), 0600); err != nil {
+		color.Red("write pid error " + err.Error())
+		return
+	}
+
+	//
 	var err error
 	engine, err = xorm.NewEngine("sqlite3", "./ex/cron.db")
 	if err != nil {
@@ -78,7 +87,7 @@ func main() {
 
 	//crontab task
 	ticker := time.NewTicker(time.Millisecond * 1000 * 59)
-	// ticker := time.NewTicker(time.Millisecond * 10)
+	// ticker := time.NewTicker(time.Millisecond * 100)
 	go func() {
 		for t := range ticker.C {
 			color.Green(fmt.Sprintln("---", t, time.Now()))
@@ -236,6 +245,10 @@ func process_cmd(_task Task) {
 			if err != nil {
 				fmt.Println(affected, err)
 			}
+
+			engine.Where("id = ?", _task.Id).Update(&Task{Last_run_time: gprocess[_task.Id].Etime})
+			//
+			_task_history = nil
 		}
 		//用完删除
 		gprocess[_task.Id].Pid = 0
@@ -322,34 +335,35 @@ func check_schedule_time(str string, tn int) bool {
 func execute(task_id int, command string, args []string) (err error) {
 
 	// stime := fmt.Sprintf(time.Now().Format("2006-01-02 15:04:05"))
-	// lmap.Lock()
 	//
 	cmd := exec.Command(command, args...)
 	//
 	stdout, err := cmd.StdoutPipe()
-	defer stdout.Close()
 	if err != nil {
-		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
+		// write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	}
-	// lmap.Unlock()
+
 	//
 	err = cmd.Start()
 	if err != nil {
-		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
+		// write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	} else {
-		write_task_start_output(task_id, cmd.Process.Pid, time.Now().Unix())
+		// write_task_start_output(task_id, cmd.Process.Pid, time.Now().Unix())
 	}
 
 	//read cmd execute output
 	r := bufio.NewReader(stdout)
 	_output, err := ioutil.ReadAll(r)
 	if err != nil {
-		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
+		// write_task_err_output(task_id, fmt.Sprintln(err.Error()))
 		return
 	}
 	output := string(_output)
+	fmt.Println(output)
+	//
+	stdout.Close()
 
 	//
 	err = cmd.Wait()
@@ -358,31 +372,40 @@ func execute(task_id int, command string, args []string) (err error) {
 	}
 	//process end ...
 	write_task_end_output(task_id, output, time.Now().Unix())
-
+	//
+	// cmd = nil
+	// output=""
+	// _output = nil
+	//
 	return nil
 }
 
 func write_task_start_output(task_id, pid int, stime int64) {
 	lmap.Lock()
-	defer lmap.Unlock()
+	// defer lmap.Unlock()
 
 	gprocess[task_id].Pid = pid
 	gprocess[task_id].Stime = stime
+
+	lmap.Unlock()
 }
 
 func write_task_end_output(task_id int, output string, etime int64) {
 	lmap.Lock()
-	defer lmap.Unlock()
+	// defer lmap.Unlock()
 
 	gprocess[task_id].Output = output
 	gprocess[task_id].Etime = etime
+
+	lmap.Unlock()
 }
 
 func write_task_err_output(task_id int, output string) {
 	lmap.Lock()
-	defer lmap.Unlock()
 
 	gprocess[task_id].Output = output
+
+	lmap.Unlock()
 }
 
 func md5string(str string) string {
@@ -444,10 +467,17 @@ func web_runing_task_handle(w http.ResponseWriter, r *http.Request) {
 
 		lmap.RLock()
 		filed["Pid"] = 0
+		filed["Rtime"] = 0
 		_, ok := gprocess[v.Id]
-		if ok {
+		if ok && gprocess[v.Id].Pid > 0 {
 			filed["Pid"] = gprocess[v.Id].Pid
 			filed["Stime"] = time.Unix(gprocess[v.Id].Stime, 0).Format("2006-01-02 15:04:05")
+			filed["Rtime"] = time.Now().Unix() - gprocess[v.Id].Stime
+		}
+		if v.Last_run_time > 0 {
+			filed["Last_run_time"] = time.Unix(v.Last_run_time, 0).Format("2006-01-02 15:04:05")
+		} else {
+			filed["Last_run_time"] = ""
 		}
 		lmap.RUnlock()
 
