@@ -184,6 +184,8 @@ func run_task() {
 			if gprocess[_task.Id].Pid > 0 {
 				color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
 
+				//
+				lmap.RUnlock()
 				continue
 			}
 		}
@@ -196,14 +198,6 @@ func run_task() {
 
 func process_cmd(_task Task) {
 	var err error
-
-	// lmap.RLock()
-	// if gprocess[_task.Id].Pid > 0 {
-	// 	color.Yellow(fmt.Sprintf("%s %s", "no run...", _task.Name))
-	// 	lmap.RUnlock()
-	// 	return
-	// }
-	// lmap.RUnlock()
 
 	color.Yellow(fmt.Sprintf("%s %s", "run...", _task.Name))
 
@@ -334,78 +328,71 @@ func check_schedule_time(str string, tn int) bool {
 
 func execute(task_id int, command string, args []string) (err error) {
 
-	// stime := fmt.Sprintf(time.Now().Format("2006-01-02 15:04:05"))
-	//
-	cmd := exec.Command(command, args...)
-	//
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		// write_task_err_output(task_id, fmt.Sprintln(err.Error()))
-		return
-	}
+	output := ""
 
-	//
-	err = cmd.Start()
-	if err != nil {
-		// write_task_err_output(task_id, fmt.Sprintln(err.Error()))
-		return
-	} else {
-		// write_task_start_output(task_id, cmd.Process.Pid, time.Now().Unix())
+	for {
+		cmd := exec.Command(command, args...)
+		//
+		stdout, err := cmd.StdoutPipe()
+		defer stdout.Close()
+
+		//
+		if err != nil {
+			output = fmt.Sprintf(err.Error())
+			break
+		}
+
+		//
+		err = cmd.Start()
+		if err != nil {
+			output = fmt.Sprintf(err.Error())
+			break
+		} else {
+			lmap.Lock()
+
+			gprocess[task_id].Pid = cmd.Process.Pid 
+			gprocess[task_id].Stime = time.Now().Unix()
+
+			lmap.Unlock()
+		}
+
+		//
+		r := bufio.NewReader(stdout)
+		_output, err := ioutil.ReadAll(r)
+		if err != nil {
+			output = fmt.Sprintf(err.Error())
+			break
+		}
+		output = string(_output)
+
+		//
+		err = cmd.Wait()
+		if err != nil {
+			output = fmt.Sprintf(err.Error())
+			break
+		}
+
+		lmap.Lock()
+
+		gprocess[task_id].Output = output
+		gprocess[task_id].Etime = time.Now().Unix()
+
+		lmap.Unlock()
+
+		break
 	}
 
 	//read cmd execute output
-	r := bufio.NewReader(stdout)
-	_output, err := ioutil.ReadAll(r)
-	if err != nil {
-		// write_task_err_output(task_id, fmt.Sprintln(err.Error()))
-		return
-	}
-	output := string(_output)
-	fmt.Println(output)
 	//
-	stdout.Close()
 
-	//
-	err = cmd.Wait()
-	if err != nil {
-		write_task_err_output(task_id, fmt.Sprintln(err.Error()))
-	}
 	//process end ...
-	write_task_end_output(task_id, output, time.Now().Unix())
+	// write_task_end_output(task_id, output, time.Now().Unix())
 	//
 	// cmd = nil
 	// output=""
 	// _output = nil
 	//
 	return nil
-}
-
-func write_task_start_output(task_id, pid int, stime int64) {
-	lmap.Lock()
-	// defer lmap.Unlock()
-
-	gprocess[task_id].Pid = pid
-	gprocess[task_id].Stime = stime
-
-	lmap.Unlock()
-}
-
-func write_task_end_output(task_id int, output string, etime int64) {
-	lmap.Lock()
-	// defer lmap.Unlock()
-
-	gprocess[task_id].Output = output
-	gprocess[task_id].Etime = etime
-
-	lmap.Unlock()
-}
-
-func write_task_err_output(task_id int, output string) {
-	lmap.Lock()
-
-	gprocess[task_id].Output = output
-
-	lmap.Unlock()
 }
 
 func md5string(str string) string {
