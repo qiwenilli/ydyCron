@@ -23,6 +23,7 @@ import (
 
 	"github.com/fatih/color"
 	// "github.com/qiniu/log"
+	"github.com/widuu/goini"
 )
 
 type GlobalConfig struct {
@@ -57,13 +58,14 @@ type Task_process struct {
 	Pid          int
 	Output       string
 	Stime, Etime int64
-	ExCmd        *interface{}
+	Cmd          *exec.Cmd
 }
 
 var (
-	gcfg   GlobalConfig
-	engine *xorm.Engine
-	lmap   = new(sync.RWMutex)
+	gcfg    GlobalConfig
+	ginicfg goini.Config
+	engine  *xorm.Engine
+	lmap    = new(sync.RWMutex)
 	//
 	gprocess = make(map[int]*Task_process, 2048)
 )
@@ -75,6 +77,8 @@ func main() {
 		color.Red("write pid error " + err.Error())
 		return
 	}
+	//ini配置文件
+	// ginicfg := goini.SetConfig("ex/ydyCron.ini")
 
 	//
 	var err error
@@ -332,6 +336,9 @@ func execute(task_id int, command string, args []string) (err error) {
 
 	for {
 		cmd := exec.Command(command, args...)
+		lmap.Lock()
+		gprocess[task_id].Cmd = cmd
+		lmap.Unlock()
 		//
 		stdout, err := cmd.StdoutPipe()
 		defer stdout.Close()
@@ -350,7 +357,7 @@ func execute(task_id int, command string, args []string) (err error) {
 		} else {
 			lmap.Lock()
 
-			gprocess[task_id].Pid = cmd.Process.Pid 
+			gprocess[task_id].Pid = cmd.Process.Pid
 			gprocess[task_id].Stime = time.Now().Unix()
 
 			lmap.Unlock()
@@ -382,15 +389,6 @@ func execute(task_id int, command string, args []string) (err error) {
 		break
 	}
 
-	//read cmd execute output
-	//
-
-	//process end ...
-	// write_task_end_output(task_id, output, time.Now().Unix())
-	//
-	// cmd = nil
-	// output=""
-	// _output = nil
 	//
 	return nil
 }
@@ -403,6 +401,25 @@ func md5string(str string) string {
 
 	// return fmt.Sprintf("%x", hash.Sum(nil), md5.Sum(b))
 	return fmt.Sprintf("%x", md5.Sum(b))
+}
+
+func check_writeip(ip string) bool {
+
+	// _ip := fmt.Sprintf("%s", r.RemoteAddr)
+	// if strings.Split(_ip, ":")[0] != "211.150.88.66" && strings.Split(_ip, ":")[0] != "211.150.88.69" {
+	//
+	// }
+
+	ips := ginicfg.GetValue("writeIp", "ip")
+
+	for _, v := range strings.Split(ips, ",") {
+		if v == ip {
+			return true
+		}
+		fmt.Println(v)
+	}
+
+	return false
 }
 
 //------------------* web ------------------
@@ -484,14 +501,23 @@ func web_kill_task_handle(w http.ResponseWriter, r *http.Request) {
 
 	task_id_int, _ := strconv.Atoi(task_id)
 
+	//
+	errstr := fmt.Sprintf("%s is killed", task_id)
+	//
 	_, ok := gprocess[task_id_int]
 	if ok {
-		out, err := exec.Command("/bin/bash", "-c", fmt.Sprintf("kill -9 %s", gprocess[task_id_int].Pid)).Output()
-
-		fmt.Println(out, err)
+		err := gprocess[task_id_int].Cmd.Process.Kill()
+		if err == nil {
+			lmap.Lock()
+			gprocess[task_id_int].Pid = 0
+			lmap.Unlock()
+		} else {
+			errstr = fmt.Sprintf("kill error: %s %s", task_id, err.Error())
+		}
 	}
+	fmt.Println(errstr)
 
-	io.WriteString(w, task_id+" killed")
+	io.WriteString(w, errstr)
 }
 
 func web_task_history_handle(w http.ResponseWriter, r *http.Request) {
